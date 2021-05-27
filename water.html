@@ -26,7 +26,7 @@
 			for (var d = 0; d < 10; d++) {
 				depths[d] = new Array(10);
 				for (var dd = 0; dd < 10; dd++) {
-					depths[d][dd] = blank ? 0 : Math.floor(6 * Math.random());
+					depths[d][dd] = blank ? 0 : Math.floor(12 * Math.random());
 				}
 			}
 
@@ -49,7 +49,10 @@
 			render();
 		}
 
-		function v(x, y) {
+		function v(x, y, render) {
+			if (render) {
+				return Math.floor(land[y][x] + depths[y][x] / 2);
+			}
 			return land[y][x] + depths[y][x];
 		}
 
@@ -128,19 +131,19 @@
 				if (water) {
 					// check height of water infront of this block
 					var outOfBounds = (x-1) < 0;
-					if ((x-1) < 0 || v(x-1, y) < v(x, y)) {
+					if ((x-1) < 0 || v(x-1, y, true) < v(x, y, true)) {
 						var th = h;
 						if (!outOfBounds) {
-							th = Math.min(h, v(x, y) - v(x-1, y));
+							th = Math.min(h, v(x, y, true) - v(x-1, y, true));
 						}
 						renderLeftFace(x, y, z, th);
 					}
 
 					outOfBounds = (y+1) > 9;
-					if ((y+1) > 9 || v(x, y+1) < v(x, y)) {
+					if ((y+1) > 9 || v(x, y+1, true) < v(x, y, true)) {
 						var th = h;
 						if (!outOfBounds) {
-							th = Math.min(h, v(x, y) - v(x, y+1));
+							th = Math.min(h, v(x, y, true) - v(x, y+1, true));
 						}
 						renderRightFace(x, y, z, th);
 					}
@@ -183,55 +186,29 @@
 			for (var c = 0; c < coords.length; c++) {
 				var x = coords[c].x;
 				var y = coords[c].y;
-				var landHeight = land[y][x];
+				var landHeight = Math.floor(land[y][x] / 2);
 
 				ctx.globalAlpha = 1;
 
 				ctx.fillStyle='hsl(22, 53%, 30%)';
-				ctx.strokeStyle='hsl(22, 43%, 20%)';
+				ctx.strokeStyle='hsl(22, 43%, 60%)';
 				renderBlock(x, y, landHeight, landHeight, false);
 
-				var depth = depths[y][x];
+				var depth = Math.floor(depths[y][x]/2);
 
 				if (depth == 0) {
 					ctx.globalAlpha = 0;
 				} else {
-					ctx.globalAlpha = 0.4 + (depth/10);
+					ctx.globalAlpha = 0.4 + (depth/20);
 				}
 
 				ctx.fillStyle='hsl(220, 100%, 20%)';
-				ctx.strokeStyle='hsl(220, 100%, 20%)';
-
-
-				//ctx.fillStyle='hsl(220, 100%, ' + (80 - (10 * depth)) + '%)';
-				
-				//ctx.fillRect(20+(20*x),(20*y),20,20);
+				ctx.strokeStyle='hsl(220, 100%, 60%)';
 
 				renderBlock(x, y, landHeight+depth, depth, true);
 
 				document.getElementById('codeOut').innerHTML = land.map(d => d.join(',')).join(';') + '-' + depths.map(d => d.join(',')).join(';');
 			}
-
-			// for (var c = 0; c < coords.length; c++) {
-			// 	var x = coords[c].x;
-			// 	var y = coords[c].y;
-			// 	var landHeight = land[y][x];
-			// 	var depth = depths[y][x];
-
-			// 	if (depth == 0) {
-			// 		ctx.globalAlpha = 0;
-			// 	} else {
-			// 		ctx.globalAlpha = 0.4 + (depth/10);
-			// 	}
-
-			// 	ctx.fillStyle='hsl(220, 100%, 20%)';
-
-			// 	//ctx.fillStyle='hsl(220, 100%, ' + (80 - (10 * depth)) + '%)';
-				
-			// 	//ctx.fillRect(20+(20*x),(20*y),20,20);
-
-			// 	renderSurface(x, y, landHeight+depth);
-			// }
 		}
 
 		function smallerAmounts(x, y) {
@@ -253,7 +230,7 @@
 				}
 			}
 
-			return result.sort((a, b) => { return b.diff - a.diff });
+			return result.sort((a, b) => { return b.diff == a.diff ? (Math.random() < 0.5 ? 1 : -1) : b.diff - a.diff });
 		}
 		
 		var int = null;
@@ -298,13 +275,6 @@
 				}
 
 				console.log(JSON.stringify(depths));
-				//console.log(JSON.stringify(nextDepths));
-
-				// for (var x = 0; x < 10; x++) {
-				// 	for (var y = 0; y < 10; y++) {
-				// 		depths[y][x] = nextDepths[y][x];
-				// 	}
-				// }
 			}, 500);
 		});
 		document.getElementById('stop').addEventListener('click', () => {
@@ -346,22 +316,22 @@
 
 			if (alt) {
 				if (!ctrl && leftClick) {
-					if (land[y][x] < 6) {
-						land[y][x]++;
+					if (land[y][x] < 12) {
+						land[y][x]+=2;
 					}
 				} else {
 					if (land[y][x] > 0) {
-						land[y][x]--;
+						land[y][x]-=2;
 					}
 				}
 			} else {
 				if (!ctrl && leftClick) {
-					if (depths[y][x] < 6) {
-						depths[y][x]++;
+					if (depths[y][x] < 12) {
+						depths[y][x]+=2;
 					}
 				} else {
 					if (depths[y][x] > 0) {
-						depths[y][x]--;
+						depths[y][x]-=2;
 					}
 				}
 			}
