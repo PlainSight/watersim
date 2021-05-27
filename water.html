@@ -15,6 +15,7 @@
 	<script>
 		var c=document.getElementById("can");
 		var ctx=c.getContext("2d");
+		c.oncontextmenu = function(e) { e.preventDefault(); e.stopPropagation(); }
 
 		var depths = null;
 		var land = null;
@@ -121,13 +122,36 @@
 				ctx.stroke();
 			}
 
-			function renderBlock(x, y, z, h) {
+			function renderBlock(x, y, z, h, water) {
 				renderSurface(x, y, z);
-				renderLeftFace(x, y, z, h);
-				renderRightFace(x, y, z, h);
+
+				if (water) {
+					// check height of water infront of this block
+					var outOfBounds = (x-1) < 0;
+					if ((x-1) < 0 || v(x-1, y) < v(x, y)) {
+						var th = h;
+						if (!outOfBounds) {
+							th = Math.min(h, v(x, y) - v(x-1, y));
+						}
+						renderLeftFace(x, y, z, th);
+					}
+
+					outOfBounds = (y+1) > 9;
+					if ((y+1) > 9 || v(x, y+1) < v(x, y)) {
+						var th = h;
+						if (!outOfBounds) {
+							th = Math.min(h, v(x, y) - v(x, y+1));
+						}
+						renderRightFace(x, y, z, th);
+					}
+				} else {
+					renderLeftFace(x, y, z, h);
+					renderRightFace(x, y, z, h);
+				}
 			}
 
 			ctx.globalAlpha = 1;
+			ctx.lineWidth = 0.67;
 			
 			var coords = [];
 
@@ -164,8 +188,8 @@
 				ctx.globalAlpha = 1;
 
 				ctx.fillStyle='hsl(22, 53%, 30%)';
-				ctx.strokeStyle='hsl(0, 100%, 100%)';
-				renderBlock(x, y, landHeight, landHeight);
+				ctx.strokeStyle='hsl(22, 43%, 20%)';
+				renderBlock(x, y, landHeight, landHeight, false);
 
 				var depth = depths[y][x];
 
@@ -176,12 +200,14 @@
 				}
 
 				ctx.fillStyle='hsl(220, 100%, 20%)';
+				ctx.strokeStyle='hsl(220, 100%, 20%)';
+
 
 				//ctx.fillStyle='hsl(220, 100%, ' + (80 - (10 * depth)) + '%)';
 				
 				//ctx.fillRect(20+(20*x),(20*y),20,20);
 
-				renderSurface(x, y, landHeight+depth);
+				renderBlock(x, y, landHeight+depth, depth, true);
 
 				document.getElementById('codeOut').innerHTML = land.map(d => d.join(',')).join(';') + '-' + depths.map(d => d.join(',')).join(';');
 			}
@@ -242,7 +268,6 @@
 
 		document.getElementById('start').addEventListener('click', () => {
 			int = setInterval(function() {
-				console.log('step', Date.now());
 				render();
 
 				var changes = 0;
@@ -269,8 +294,6 @@
 								changes++;
 							}
 						}
-
-						//nextDepths[y][x] = depth + diff;
 					}
 				}
 
@@ -282,7 +305,6 @@
 				// 		depths[y][x] = nextDepths[y][x];
 				// 	}
 				// }
-				console.log('end step', Date.now(), changes);
 			}, 500);
 		});
 		document.getElementById('stop').addEventListener('click', () => {
@@ -294,18 +316,26 @@
 		document.getElementById('code').addEventListener('change', () => {
 			var val = document.getElementById('code').value;
 			var parts = val.split('-');
-			
+			var ground = parts[0].split(';');
+			var water = parts[1].split(';');
+
+			land = ground.map(g => g.split(',').map(n => parseInt(n)));
+			depths = water.map(w => w.split(',').map(n => parseInt(n)));
+
+			document.getElementById('code').value = '';
+
+			render();
 		});
 
-		document.getElementById('can').addEventListener('click', (ev) => {
+		function handleClick(x, y, leftClick, alt, ctrl) {
 			var dx = Math.cos(Math.PI/6)*40;
 			var dy = Math.sin(Math.PI/6)*40;
 
-			var xplusy = (ev.offsetX - 40) / dx;
-			var yminusx = (ev.offsetY - 320) / dy;
+			var xplusy = (x - 40) / dx;
+			var yminusx = (y - 320) / dy;
 
-			var x = (xplusy - yminusx) / 2;
-			var y = yminusx + x;
+			x = (xplusy - yminusx) / 2;
+			y = yminusx + x;
 
 			x = Math.floor(x);
 			y = Math.floor(y);
@@ -314,8 +344,8 @@
 				return;
 			}
 
-			if (ev.altKey) {
-				if (!ev.ctrlKey) {
+			if (alt) {
+				if (!ctrl && leftClick) {
 					if (land[y][x] < 6) {
 						land[y][x]++;
 					}
@@ -325,7 +355,7 @@
 					}
 				}
 			} else {
-				if (!ev.ctrlKey) {
+				if (!ctrl && leftClick) {
 					if (depths[y][x] < 6) {
 						depths[y][x]++;
 					}
@@ -337,6 +367,14 @@
 			}
 			
 			render();
+		}
+
+		document.getElementById('can').addEventListener('contextmenu', (ev) => {
+			handleClick(ev.offsetX, ev.offsetY, false, ev.altKey, ev.ctrlKey);
+		});
+
+		document.getElementById('can').addEventListener('click', (ev) => {
+			handleClick(ev.offsetX, ev.offsetY, true, ev.altKey, ev.ctrlKey);
 		});
 		
 	</script>
