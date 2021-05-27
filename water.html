@@ -1,0 +1,349 @@
+<html>
+	<head>
+	</head>
+	<body>
+		<button id="start">Start</button>
+		<button id="stop">Stop</button>
+		<button id="reset">Reset</button>
+		<button id="blank">Blank</button>
+		<input id="code" size="100" />
+		<p id="codeOut"></p>
+		<canvas id="can" width="400" height="275" style="width: 800px; height: 550px; margin: 80px;">
+		</canvas>
+	</body>
+	
+	<script>
+		var c=document.getElementById("can");
+		var ctx=c.getContext("2d");
+
+		var depths = null;
+		var land = null;
+		var momentum = null
+
+		function setup(blank) {
+			depths = new Array(10);
+			for (var d = 0; d < 10; d++) {
+				depths[d] = new Array(10);
+				for (var dd = 0; dd < 10; dd++) {
+					depths[d][dd] = blank ? 0 : Math.floor(6 * Math.random());
+				}
+			}
+
+			land = new Array(10);
+			for (var d = 0; d < 10; d++) {
+				land[d] = new Array(10);
+				for (var dd = 0; dd < 10; dd++) {
+					land[d][dd] = 0;
+				}
+			}
+
+			momentum = new Array(10);
+			for (var d = 0; d < 10; d++) {
+				momentum[d] = new Array(10);
+				for (var dd = 0; dd < 10; dd++) {
+					momentum[d][dd] = { dx: 0, dy: 0 };
+				}
+			}
+
+			render();
+		}
+
+		function v(x, y) {
+			return land[y][x] + depths[y][x];
+		}
+
+		setup(false);
+		
+		function render() {
+			ctx.clearRect(0, 0, 400, 400);
+
+			function renderSurface(x, y, z) {
+				var dx = Math.cos(Math.PI/6)*20;
+				var dy = Math.sin(Math.PI/6)*20;
+
+				var x1 = 20 + (x+y)*dx;
+				var y1 = 160+ (y-x)*dy - (dy*z);
+				ctx.beginPath();
+				ctx.moveTo(x1, y1);
+				ctx.lineTo(x1+dx, y1-dy);
+				var xr = x1+dx+dx;
+				var yr = y1;
+				ctx.lineTo(xr, yr);
+				var xb = x1+dx;
+				var yb = y1+dy;
+				ctx.lineTo(xb, yb);
+				ctx.lineTo(x1, y1);
+				ctx.fill();
+				ctx.stroke();
+			}
+
+			function renderRightFace(x, y, z, h) {
+				var dx = Math.cos(Math.PI/6)*20;
+				var dy = Math.sin(Math.PI/6)*20;
+
+				var x1 = 20 + (x+y+2)*dx;
+				var y1 = 160+ (y-x)*dy - (dy*z);
+				ctx.beginPath();
+				ctx.moveTo(x1, y1);
+				var xt = x1-dx;
+				var yt = y1+dy;
+				ctx.lineTo(xt, yt);
+				var xr = xt;
+				var yr = yt+(dy*h);
+				ctx.lineTo(xr, yr);
+				var xl = x1;
+				var yl = y1+(dy*h);
+				ctx.lineTo(xl, yl);
+				ctx.lineTo(x1, y1);
+				ctx.fill();
+				ctx.stroke();
+			}
+
+			function renderLeftFace(x, y, z, h) {
+				var dx = Math.cos(Math.PI/6)*20;
+				var dy = Math.sin(Math.PI/6)*20;
+
+				var x1 = 20 + (x+y)*dx;
+				var y1 = 160+ (y-x)*dy - (dy*z);
+				ctx.beginPath();
+				ctx.moveTo(x1, y1);
+				var xt = x1+dx;
+				var yt = y1+dy;
+				ctx.lineTo(xt, yt);
+				var xr = xt;
+				var yr = yt+(dy*h);
+				ctx.lineTo(xr, yr);
+				var xl = x1;
+				var yl = y1+(dy*h);
+				ctx.lineTo(xl, yl);
+				ctx.lineTo(x1, y1);
+				ctx.fill();
+				ctx.stroke();
+			}
+
+			function renderBlock(x, y, z, h) {
+				renderSurface(x, y, z);
+				renderLeftFace(x, y, z, h);
+				renderRightFace(x, y, z, h);
+			}
+
+			ctx.globalAlpha = 1;
+			
+			var coords = [];
+
+			for (var x = 0; x < 10; x++) {
+				for (var y = 0; y < 10; y++) {
+					coords.push({ x: x, y: y });
+				}
+			}
+
+			function renderOrder(x, y) {
+				var chebyshev = Math.max(9 - x, y);
+				var ring = Math.pow(chebyshev, 2);
+				var subOrd = ring; 
+				
+				if (chebyshev == 9 - x && chebyshev == y) {
+					subOrd += (chebyshev == 9 - x ? 2 * y : 0);
+				} else {
+					subOrd += (chebyshev == 9 - x ? 2 * y : 0) + 
+					(chebyshev == y ? 1 + (9 - x) * 2 : 0);
+				}
+					
+				return subOrd;
+			}
+
+			coords.sort((a, b) => {
+				return renderOrder(a.x, a.y) - renderOrder(b.x, b.y);
+			});
+
+			for (var c = 0; c < coords.length; c++) {
+				var x = coords[c].x;
+				var y = coords[c].y;
+				var landHeight = land[y][x];
+
+				ctx.globalAlpha = 1;
+
+				ctx.fillStyle='hsl(22, 53%, 30%)';
+				ctx.strokeStyle='hsl(0, 100%, 100%)';
+				renderBlock(x, y, landHeight, landHeight);
+
+				var depth = depths[y][x];
+
+				if (depth == 0) {
+					ctx.globalAlpha = 0;
+				} else {
+					ctx.globalAlpha = 0.4 + (depth/10);
+				}
+
+				ctx.fillStyle='hsl(220, 100%, 20%)';
+
+				//ctx.fillStyle='hsl(220, 100%, ' + (80 - (10 * depth)) + '%)';
+				
+				//ctx.fillRect(20+(20*x),(20*y),20,20);
+
+				renderSurface(x, y, landHeight+depth);
+
+				document.getElementById('codeOut').innerHTML = land.map(d => d.join(',')).join(';') + '-' + depths.map(d => d.join(',')).join(';');
+			}
+
+			// for (var c = 0; c < coords.length; c++) {
+			// 	var x = coords[c].x;
+			// 	var y = coords[c].y;
+			// 	var landHeight = land[y][x];
+			// 	var depth = depths[y][x];
+
+			// 	if (depth == 0) {
+			// 		ctx.globalAlpha = 0;
+			// 	} else {
+			// 		ctx.globalAlpha = 0.4 + (depth/10);
+			// 	}
+
+			// 	ctx.fillStyle='hsl(220, 100%, 20%)';
+
+			// 	//ctx.fillStyle='hsl(220, 100%, ' + (80 - (10 * depth)) + '%)';
+				
+			// 	//ctx.fillRect(20+(20*x),(20*y),20,20);
+
+			// 	renderSurface(x, y, landHeight+depth);
+			// }
+		}
+
+		function smallerAmounts(x, y) {
+			var minx = Math.max(0, x-1);
+			var maxx = Math.min(9, x+1);
+			var miny = Math.max(0, y-1);
+			var maxy = Math.min(9, y+1);
+
+			var result = [];
+
+			for(var tx = minx; tx <= maxx; tx++) {
+			inner:for(var ty = miny; ty <= maxy; ty++) {
+					if (tx == x && ty == y) {
+						continue inner;
+					}
+					if (v(tx, ty) < v(x, y)) {
+						result.push({ x: tx, y: ty, diff: v(x, y) - v(tx, ty) });
+					}
+				}
+			}
+
+			return result.sort((a, b) => { return b.diff - a.diff });
+		}
+		
+		var int = null;
+
+		document.getElementById('reset').addEventListener('click', () => {
+			setup(false);
+		});
+
+		document.getElementById('blank').addEventListener('click', () => {
+			setup(true);
+		});
+
+		document.getElementById('start').addEventListener('click', () => {
+			int = setInterval(function() {
+				console.log('step', Date.now());
+				render();
+
+				var changes = 0;
+
+				for (var x = 0; x < 10; x++) {
+					for (var y = 0; y < 10; y++) {
+						if (depths[y][x] > 0) {
+							var sorroundingSmallerDepths = smallerAmounts(x, y);
+
+							if (sorroundingSmallerDepths.length > 1) {
+								var biggestDifference = sorroundingSmallerDepths[0];
+
+								var change = Math.floor(biggestDifference.diff / 2);
+								if (change > depths[y][x]) {
+									change = depths[y][x];
+								}
+								if (change == 0) {
+									change = 1;
+								}
+
+								depths[biggestDifference.y][biggestDifference.x] += change;
+								depths[y][x] -= change;
+
+								changes++;
+							}
+						}
+
+						//nextDepths[y][x] = depth + diff;
+					}
+				}
+
+				console.log(JSON.stringify(depths));
+				//console.log(JSON.stringify(nextDepths));
+
+				// for (var x = 0; x < 10; x++) {
+				// 	for (var y = 0; y < 10; y++) {
+				// 		depths[y][x] = nextDepths[y][x];
+				// 	}
+				// }
+				console.log('end step', Date.now(), changes);
+			}, 500);
+		});
+		document.getElementById('stop').addEventListener('click', () => {
+			if (int) {
+				clearInterval(int);
+			}
+		});
+
+		document.getElementById('code').addEventListener('change', () => {
+			var val = document.getElementById('code').value;
+			var parts = val.split('-');
+			
+		});
+
+		document.getElementById('can').addEventListener('click', (ev) => {
+			var dx = Math.cos(Math.PI/6)*40;
+			var dy = Math.sin(Math.PI/6)*40;
+
+			var xplusy = (ev.offsetX - 40) / dx;
+			var yminusx = (ev.offsetY - 320) / dy;
+
+			var x = (xplusy - yminusx) / 2;
+			var y = yminusx + x;
+
+			x = Math.floor(x);
+			y = Math.floor(y);
+
+			if (x > 9 || x < 0 || y > 9 || y < 0) {
+				return;
+			}
+
+			if (ev.altKey) {
+				if (!ev.ctrlKey) {
+					if (land[y][x] < 6) {
+						land[y][x]++;
+					}
+				} else {
+					if (land[y][x] > 0) {
+						land[y][x]--;
+					}
+				}
+			} else {
+				if (!ev.ctrlKey) {
+					if (depths[y][x] < 6) {
+						depths[y][x]++;
+					}
+				} else {
+					if (depths[y][x] > 0) {
+						depths[y][x]--;
+					}
+				}
+			}
+			
+			render();
+		});
+		
+	</script>
+
+	<style type="text/css">
+		#codeOut {
+			font-size: 8px;
+		}
+	</style>
+</html>
