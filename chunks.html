@@ -1,0 +1,232 @@
+<html>
+	<head>
+	</head>
+	<body>
+        <div>
+            <button id="step">Step</button>
+		    <button id="addchunk">Add Chunk</button>
+		    <button id="reset">Reset</button>
+        </div>
+		<canvas id="can" width="400" height="275" style="width: 800px; height: 550px;">
+		</canvas>
+	</body>
+
+    <script>
+		var c=document.getElementById("can");
+		var ctx=c.getContext("2d");
+		c.oncontextmenu = function(e) { e.preventDefault(); e.stopPropagation(); }
+
+        var objectId = 1000;
+
+        // neighbour index
+        var NORTH = 0; var NORTHEAST = 1; var EAST = 2; var SOUTHEAST = 3; var SOUTH = 4; var SOUTHWEST = 5; var WEST = 6; var NORTHWEST = 7;
+
+        var flipDirection = function(direction) {
+            return (direction + 4) % 8;
+        }
+
+        var verticalComponent = function(direction) {
+            if (direction == NORTH || direction == NORTHEAST || direction == NORTHWEST) {
+                return NORTH;
+            }
+            if (direction == SOUTH || direction == SOUTHEAST || direction == SOUTHWEST) {
+                return SOUTH;
+            }
+        }
+
+        var horizontalComponent = function(direction) {
+            if (direction == EAST || direction == NORTHEAST || direction == SOUTHEAST) {
+                return EAST;
+            }
+            if (direction == WEST || direction == NORTHWEST || direction == SOUTHWEST) {
+                return WEST;
+            }
+        }
+
+        var Mover = function(x, y) {
+            this.id = objectId;
+            objectId++;
+            this.x = x;
+            this.y = y;
+            this.dx = 0;
+            this.dy = 0;
+            this.destdx = 0;
+            this.destdy = 0;
+        }
+
+        Mover.prototype.setDestination = function(x, y) {
+            this.destdx = x;
+            this.destdy = y;
+        }
+
+        Mover.prototype.updateIntent = function() {
+            this.dx = destdx / Math.abs(destdx);
+            this.dy = destdy / Math.abs(destdy);
+        }
+
+        Mover.prototype.getLocation = function() {
+            return { x: this.x, y: this.y };
+        }
+
+        Mover.prototype.getIntent = function() {
+            return { dx: this.dx, dy: this.dy };
+        }
+
+        Mover.prototype.getIntentLocation = function() {
+            var x = this.x + this.dx;
+            x = (this.x + 3) % 3;
+
+            var y = this.y + this.dy;
+            y = (this.y + 3) % 3;
+
+            return { x: x, y: y };
+        }
+
+        Mover.prototype.getIntentLocationIndex = function() {
+            var il = this.getIntentLocation();
+            return il.x + (3*il.y);
+        }
+
+        Mover.prototype.getIntentDirection = function() {
+            // N  NE E  SE S  SW W  NW
+            // 0  1  2  3  4  5  6  7  
+            var comps = [];
+            if (this.dy < 0) { comps.push(8); }
+            if (this.dy > 0) { comps.push(4); }
+            if (this.dx < 0) { comps.push(6); }
+            if (this.dx > 0) { comps.push(2); }
+            if (comps.length == 0) {
+                return null;
+            }
+            return (comps.reduce((a, b) => a + b, 0) / comps.length) % 8;
+        }
+
+        Mover.prototype.move = function() {
+            this.x = this.x + this.dx;
+            this.x = (this.x + 3) % 3;
+
+            this.y = this.y + this.dy;
+            this.y = (this.y + 3) % 3;
+
+            this.destdx = this.destdx - this.dx;
+            this.destdy = this.destdy - this.dy;
+        }
+
+        var Chunk = function() {
+            this.tick = 0;
+            this.neighbours = [];
+            this.neighbours.length = 8;
+            this.commands = [];
+
+            this.cells = [
+                null, null, null, 
+                null, null, null,
+                null, null, null
+                ];
+        }
+
+        Chunk.prototype.getView = function() {
+            return JSON.parse(JSON.stringify({ tick: this.tick, cells: this.cells }));
+        }
+
+        Chunk.prototype.assignNeighbour = function(direction, neighbour) {
+            this.neighbours[direction] = neighbour;
+            neighbour.assignNeighbour(flipDirection(direction), this);
+        }
+
+        Chunk.prototype.assignView = function(direction, view) {
+            this.views[direction] = view;
+        }
+
+        Chunk.prototype.step = function() {
+            // resolve previous intents
+            for (var k in this.cells) {
+                if (this.cells[k]) {
+                    var mover = this.cells[k];
+                    // check if destination is clear
+                    var location = mover.getLocation();
+                    var intent = mover.getIntent();
+                    var direction = mover.getIntentDirection();
+
+                    var nlx = location.x + intent.dx;
+                    var nly = location.y + intent.dy;
+
+                    var obx = (nlx > 2 || nlx < 0);
+                    var oby = (nly > 2 || nly < 0);
+
+                    var allowedMove = false;
+
+                    if (obx && oby) {
+                        allowedMove = this.views[direction].cells[mover.getIntentLocationIndex()] == null;
+                    } else {
+                        if (obx) {
+                            allowedMove = this.views[horizontalComponent(direction)].cells[mover.getIntentLocationIndex()] == null;
+                        }
+                        if (oby) {
+                            allowedMove = this.views[verticalComponent(direction)].cells[mover.getIntentLocationIndex()] == null;
+                        }
+                        if (!obx && !oby) {
+                            allowedMove = this.cells[mover.getIntentLocationIndex()] == null;
+                        }
+                    }
+
+
+
+                    mover.move();
+                }
+            }
+
+            // apply commands
+
+
+            // set new intents
+            for (var k in this.cells) {
+                if (this.cells[k]) {
+                    this.cells[k].updateIntent();
+                }
+            }
+
+            // provide views
+            var view = this.getView();
+            for (var n in this.neighbours) {
+                this.neighbours[n].assignView(flipDirection(n), view);
+            }
+        }
+
+        Chunk.prototype.put = function(m) {
+            this.cells
+        }
+
+        var c = new Chunk();
+
+        var chunks = [];
+
+        function handleClick() {
+
+        }
+
+        function renderChunk(chunk) {
+            ctx.fillStyle='hsl(0, 100%, 100%)';
+            ctx.strokeStyle='hsl(0, 100%, 0%)';
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            var xt = x1+dx;
+            var yt = y1+dy;
+            ctx.lineTo(xt, yt);
+            var xr = xt;
+            var yr = yt+(dy*h);
+            ctx.lineTo(xr, yr);
+            var xl = x1;
+            var yl = y1+(dy*h);
+            ctx.lineTo(xl, yl);
+            ctx.lineTo(x1, y1);
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        document.getElementById('can').addEventListener('click', (ev) => {
+			handleClick(ev.offsetX, ev.offsetY, true, ev.altKey, ev.ctrlKey);
+		});
+
+    </script>
+</html>
